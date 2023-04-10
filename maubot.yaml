@@ -1,0 +1,10 @@
+maubot: 0.1.0
+id: org.jobmachine.chatgpt
+version: 0.0.1
+modules:
+  - gpt
+main_class: GPTPlugin
+config: true
+extra_files:
+  - base-config.yaml
+database: false 

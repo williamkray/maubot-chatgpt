@@ -1,0 +1,21 @@
+gpt_api_key: somestring
+
+model: gpt-3.5-turbo
+max_tokens: 4000
+
+# allowed users who can make calls to the openAI APIs. an empty list
+# means everyone is allowed.
+allowed_users: []
+
+# your bot's name, for reference. leave blank to use mxid localpart
+# set this to a specific value if the bot's mxid localpart does not
+# match their display nick, as clients tend to use the display nick in
+# message bodies when using tab-completion.
+# this is used as the trigger to get your bots attention in rooms with
+# more than one user in them
+name: ''
+
+# how to minimally train your bot. use this to adjust your bot's behavior.
+# you can use the {name} variable in this text.
+system_prompt: |
+    You are a friendly assistant named {name}. Answer concisely.
