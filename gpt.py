@@ -2,6 +2,7 @@ import asyncio
 import json
 import os
 import re
+from datetime import datetime
 
 from typing import Type, Deque, Dict
 from mautrix.client import Client
@@ -34,15 +35,13 @@ class GPTPlugin(Plugin):
         self.config.load_and_update()
         self.name = self.config['name'] if self.config['name'] else self.client.parse_user_id(self.client.mxid)[0]
         self.log.debug(f"DEBUG gpt plugin started with bot name: {self.name}")
-        prompt = self.config['system_prompt'].format(name=self.name)
-        self.system_prompt = {"role": "system", "content": prompt}
-        self.log.debug(f"DEBUG gpt plugin system prompt set to: {self.system_prompt}")
         self.prev_room_events = defaultdict(lambda: deque(maxlen=EVENT_CACHE_LENGTH))
 
     @event.on(EventType.ROOM_MESSAGE)
     async def on_message(self, event: MessageEvent) -> None:
         role = ''
         content = ''
+        timestamp = datetime.today().strftime('%Y-%m-%d %H:%M:%S')
 
         if event.sender == self.client.mxid:
             role = 'assistant'
@@ -60,11 +59,15 @@ class GPTPlugin(Plugin):
 
         try:
             # Check if the message contains the bot's ID
-            match_name = re.search("(^|\s)(@)?" + self.name + "(\s|(\?)?$)", event.content.body, re.IGNORECASE)
+            match_name = re.search("(^|\s)(@)?" + self.name + "(\s|\,|(\?)?$)", event.content.body, re.IGNORECASE)
             if match_name or len(joined_members) == 2:
                 if len(self.config['allowed_users']) > 0 and event.sender not in self.config['allowed_users']:
                     await event.respond("sorry, you're not allowed to use this functionality.")
                     return
+
+                prompt = self.config['system_prompt'].format(name=self.name, timestamp=timestamp)
+                system_prompt = {"role": "system", "content": prompt}
+                self.log.debug(f"DEBUG gpt plugin system prompt set to: {system_prompt}")
 
                 await event.mark_read()
                 
@@ -74,12 +77,14 @@ class GPTPlugin(Plugin):
                 if len(context) == EVENT_CACHE_LENGTH:
                     context.popleft()
 
-                context.appendleft(self.system_prompt)
+                context.appendleft(system_prompt)
 
                 # Call the chatGPT API to get a response
+                await self.client.set_typing(event.room_id, timeout=9999)
                 response = await self._call_gpt(context)
                 
                 # Send the response back to the chat room
+                await self.client.set_typing(event.room_id, timeout=0)
                 await event.respond(f"{response}")
         except Exception as e:
             self.log.error(f"Something went wrong: {e}")

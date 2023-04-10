@@ -1,7 +1,7 @@
 gpt_api_key: somestring
 
 model: gpt-3.5-turbo
-max_tokens: 4000
+max_tokens: 2500
 
 # allowed users who can make calls to the openAI APIs. an empty list
 # means everyone is allowed.
@@ -18,4 +18,7 @@ name: ''
 # how to minimally train your bot. use this to adjust your bot's behavior.
 # you can use the {name} variable in this text.
 system_prompt: |
-    You are a friendly assistant named {name}. Answer concisely.
+    You are a friendly assistant named {name}. 
+    The currend datetime is {timestamp}, and this can be used reliably to 
+    answer questions related to dates and times.
+    Answer concisely.
