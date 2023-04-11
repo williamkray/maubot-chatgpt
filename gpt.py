@@ -41,6 +41,7 @@ class GPTPlugin(Plugin):
     @event.on(EventType.ROOM_MESSAGE)
     async def on_message(self, event: MessageEvent) -> None:
         role = ''
+        user = ''
         content = ''
         timestamp = datetime.today().strftime('%Y-%m-%d %H:%M:%S')
 
@@ -48,9 +49,11 @@ class GPTPlugin(Plugin):
             role = 'assistant'
         else:
             role = 'user'
+            user = self.client.parse_user_id(event.sender)[0] # only use the localpart
 
         # keep track of all messages, even if the bot sent them
-        self.prev_room_events[event.room_id].append({"role": role , "content": event['content']['body'].lower()})
+        self.prev_room_events[event.room_id].append({"role": role , "content": 
+                                                     user + ': ' + event['content']['body'].lower()})
 
         # if the bot sent the message or another command was issued, just pass
         if event.sender == self.client.mxid or event.content.body.startswith('!'):
@@ -60,7 +63,7 @@ class GPTPlugin(Plugin):
 
         try:
             # Check if the message contains the bot's ID
-            match_name = re.search("(^|\s)(@)?" + self.name + "(\s|\,|(\?)?$)", event.content.body, re.IGNORECASE)
+            match_name = re.search("(^|\s)(@)?" + self.name + "(\s|\,\.|(\?)?$)", event.content.body, re.IGNORECASE)
             if match_name or len(joined_members) == 2:
                 if len(self.config['allowed_users']) > 0 and event.sender not in self.config['allowed_users']:
                     await event.respond("sorry, you're not allowed to use this functionality.")
@@ -109,13 +112,24 @@ class GPTPlugin(Plugin):
             pass
 
     async def _call_gpt(self, prompt):
+        full_context = [{'role': 'system', 'content': 'user messages are in the context of\
+                    multiperson chatrooms. each message indicates its sender by prefixing\
+                    the message with the sender\'s name followed by a colon, such as this example:\
+                    \
+                    "username: hello world."\
+                    \
+                    in this case, the user called "username" sent the\
+                    message "hello world.". you should not follow this convention in your responses.\
+                    your response instead could be "hello username!" without including any colons,\
+                    because you are the only one sending your responses there is no need to prefix them.'}]
+        full_context.extend(list(prompt))
         headers = {
             "Content-Type": "application/json",
             "Authorization": f"Bearer {self.config['gpt_api_key']}"
         }
         data = {
             "model": self.config['model'],
-            "messages": list(prompt),
+            "messages": full_context,
             "max_tokens": self.config['max_tokens']
         }
         
@@ -125,7 +139,12 @@ class GPTPlugin(Plugin):
             if response.status != 200:
                 return f"Error: {await response.text()}"
             response_json = await response.json()
-            return response_json["choices"][0]["message"]["content"]
+            content = response_json["choices"][0]["message"]["content"]
+            # strip off extra colons which the model seems to keep adding no matter how
+            # much you tell it not to
+            content = re.sub('^\:+\s+', '', content)
+            self.log.debug(content)
+            return content
 
 
     @classmethod
