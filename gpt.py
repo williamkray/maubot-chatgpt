@@ -143,7 +143,7 @@ class GPTPlugin(Plugin):
             # strip off extra colons which the model seems to keep adding no matter how
             # much you tell it not to
             content = re.sub('^\:+\s+', '', content)
-            self.log.debug(content)
+            #self.log.debug(content)
             return content
 
 
