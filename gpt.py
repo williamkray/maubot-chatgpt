@@ -63,7 +63,7 @@ class GPTPlugin(Plugin):
 
         try:
             # Check if the message contains the bot's ID
-            match_name = re.search("(^|\s)(@)?" + self.name + "(\s|\,\.|(\?)?$)", event.content.body, re.IGNORECASE)
+            match_name = re.search("(^|\s)(@)?" + self.name + "(\s|\,|\.|(\?)?$)", event.content.body, re.IGNORECASE)
             if match_name or len(joined_members) == 2:
                 if len(self.config['allowed_users']) > 0 and event.sender not in self.config['allowed_users']:
                     await event.respond("sorry, you're not allowed to use this functionality.")
