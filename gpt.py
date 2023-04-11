@@ -25,6 +25,7 @@ class Config(BaseProxyConfig):
         helper.copy("system_prompt")
         helper.copy("name")
         helper.copy("allowed_users")
+        helper.copy("addl_context")
 
 class GPTPlugin(Plugin):
 
@@ -67,20 +68,37 @@ class GPTPlugin(Plugin):
 
                 prompt = self.config['system_prompt'].format(name=self.name, timestamp=timestamp)
                 system_prompt = {"role": "system", "content": prompt}
-                self.log.debug(f"DEBUG gpt plugin system prompt set to: {system_prompt}")
 
                 await event.mark_read()
                 
                 context = self.prev_room_events.get(event.room_id, [])
-                # if our short history is already at max capacity, drop the oldest message
-                # to make room for our more important system prompt
-                if len(context) == EVENT_CACHE_LENGTH:
-                    context.popleft()
+                # if our short history is already at max capacity, drop the oldest messages
+                # to make room for our more important system prompt(s)
+                addl_context = json.loads(json.dumps(self.config['addl_context']))
+                # full prompt count is number of messages provided in config, plus system prompt
+                prompt_count = len(addl_context) + 1
 
+                # too many prompts? that's a problem, just bomb out.
+                # we'll always want to save the last message in the cache because that's our prompt
+                if prompt_count > EVENT_CACHE_LENGTH - 1:
+                    await event.respond("sorry, my configuration has too many prompts and i'll never see your message.\
+                                        update my config to have fewer messages and i'll be able to answer your\
+                                        questions!")
+                    return
+
+                # find out how many spots we need to open up to prepend our prompts
+                if prompt_count >= EVENT_CACHE_LENGTH - len(context):
+                    for c in range(1, prompt_count):
+                        context.popleft()
+
+                for m in addl_context:
+                    context.appendleft(addl_context.pop())
                 context.appendleft(system_prompt)
 
+                #self.log.debug(f"CONTEXT: {context}")
+
                 # Call the chatGPT API to get a response
-                await self.client.set_typing(event.room_id, timeout=9999)
+                await self.client.set_typing(event.room_id, timeout=99999)
                 response = await self._call_gpt(context)
                 
                 # Send the response back to the chat room

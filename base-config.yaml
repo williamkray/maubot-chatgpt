@@ -22,3 +22,16 @@ system_prompt: |
     The currend datetime is {timestamp}, and this can be used reliably to 
     answer questions related to dates and times.
     Answer concisely.
+
+# additional context to provide in the prompts.
+# keep in mind the max number of context messages is 10 across all rooms,
+# so leave room here to include previous questions and context.
+# refer to documentation about zero-shot, one-shot, and few-shot prompts.
+# leave this an empty list to skip it altogether.
+addl_context: 
+  - role: user
+    content: What does TLA stand for?
+  - role: assistant
+    content: |
+        TLA stands for 'Three Letter Acronym'. It is a self-referrential joke
+        used at large agencies and companies where acronyms are abundant.
