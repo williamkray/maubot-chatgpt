@@ -146,6 +146,15 @@ class GPTPlugin(Plugin):
             #self.log.debug(content)
             return content
 
+    @command.new(name='gpt', help='control chatGPT functionality', require_subcommand=True)
+    async def gpt(self, evt: MessageEvent) -> None:
+        pass
+
+    @gpt.subcommand("clear", help="clear the cache of context and return the bot to its original system prompt")
+    async def clear_cache(self, evt: MessageEvent) -> None:
+        self.prev_room_events.clear()
+        await evt.react('✅')
+
 
     @classmethod
     def get_config_class(cls) -> Type[BaseProxyConfig]:
