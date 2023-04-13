@@ -22,6 +22,7 @@ class Config(BaseProxyConfig):
         helper.copy("gpt_api_key")
         helper.copy("model")
         helper.copy("max_tokens")
+        helper.copy("enable_multi_user")
         helper.copy("system_prompt")
         helper.copy("name")
         helper.copy("allowed_users")
@@ -49,11 +50,12 @@ class GPTPlugin(Plugin):
             role = 'assistant'
         else:
             role = 'user'
-            user = self.client.parse_user_id(event.sender)[0] # only use the localpart
+            if self.config['enable_multi_user']:
+                user = self.client.parse_user_id(event.sender)[0] + ': ' # only use the localpart
 
         # keep track of all messages, even if the bot sent them
         self.prev_room_events[event.room_id].append({"role": role , "content": 
-                                                     user + ': ' + event['content']['body'].lower()})
+                                                     user + event['content']['body'].lower()})
 
         # if the bot sent the message or another command was issued, just pass
         if event.sender == self.client.mxid or event.content.body.startswith('!'):
@@ -112,7 +114,9 @@ class GPTPlugin(Plugin):
             pass
 
     async def _call_gpt(self, prompt):
-        full_context = [{'role': 'system', 'content': 'user messages are in the context of\
+        full_context = []
+        if self.config['enable_multi_user']:
+            full_context.append({'role': 'system', 'content': 'user messages are in the context of\
                     multiperson chatrooms. each message indicates its sender by prefixing\
                     the message with the sender\'s name followed by a colon, such as this example:\
                     \
@@ -121,7 +125,8 @@ class GPTPlugin(Plugin):
                     in this case, the user called "username" sent the\
                     message "hello world.". you should not follow this convention in your responses.\
                     your response instead could be "hello username!" without including any colons,\
-                    because you are the only one sending your responses there is no need to prefix them.'}]
+                    because you are the only one sending your responses there is no need to prefix them.'})
+
         full_context.extend(list(prompt))
         headers = {
             "Content-Type": "application/json",

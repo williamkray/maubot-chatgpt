@@ -15,6 +15,13 @@ allowed_users: []
 # more than one user in them
 name: ''
 
+# whether to enable multi-user awareness. this prefixes every context message
+# with the localpart of the sender of that message, and adds a system prompt
+# informing the model of that fact. this increases personal data shared with
+# openAI as well as your used token count, but makes the bot work a little better
+# in multi-person chat rooms
+enable_multi_user: true
+
 # how to minimally train your bot. use this to adjust your bot's behavior.
 # you can use the {name} variable in this text.
 system_prompt: |
