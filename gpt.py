@@ -157,7 +157,7 @@ class GPTPlugin(Plugin):
 
     @gpt.subcommand("clear", help="clear the cache of context and return the bot to its original system prompt")
     async def clear_cache(self, evt: MessageEvent) -> None:
-        self.prev_room_events.clear()
+        self.prev_room_events.pop(evt.room_id)
         await evt.react('✅')
 
 
