@@ -10,7 +10,7 @@ from collections import deque, defaultdict
 from maubot.handlers import command, event
 from maubot import Plugin, MessageEvent
 from mautrix.errors import MNotFound, MatrixRequestError
-from mautrix.types import TextMessageEventContent, EventType, RoomID, UserID
+from mautrix.types import TextMessageEventContent, EventType, RoomID, UserID, MessageType
 from mautrix.util.config import BaseProxyConfig, ConfigUpdateHelper
 
 GPT_API_URL = "https://api.openai.com/v1/chat/completions"
@@ -67,6 +67,9 @@ class GPTPlugin(Plugin):
             # Check if the message contains the bot's ID
             match_name = re.search("(^|\s)(@)?" + self.name + "([ :,.!?]|$)", event.content.body, re.IGNORECASE)
             if match_name or len(joined_members) == 2:
+                if event.content.msgtype == MessageType.NOTICE:
+                    return # don't respond to other bot messages
+
                 if len(self.config['allowed_users']) > 0 and event.sender not in self.config['allowed_users']:
                     await event.respond("sorry, you're not allowed to use this functionality.")
                     return

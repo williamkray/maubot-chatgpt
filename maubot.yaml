@@ -1,6 +1,6 @@
 maubot: 0.1.0
 id: org.jobmachine.chatgpt
-version: 0.0.4
+version: 0.0.5
 modules:
   - gpt
 main_class: GPTPlugin
