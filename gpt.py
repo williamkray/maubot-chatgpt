@@ -55,7 +55,7 @@ class GPTPlugin(Plugin):
 
         # keep track of all messages, even if the bot sent them
         self.prev_room_events[event.room_id].append({"role": role , "content": 
-                                                     user + event['content']['body'].lower()})
+                                                     user + event['content']['body']})
 
         # if the bot sent the message or another command was issued, just pass
         if event.sender == self.client.mxid or event.content.body.startswith('!'):
