@@ -1,6 +1,6 @@
-# chatGPT 
+# chatGPT
 
-maubot plugin to allow your maubot instance to return queries from openAI GPT API endpoints. 
+maubot plugin to allow your maubot instance to return queries from openAI GPT API endpoints.
 
 add your openAI API key to the config, and modify as you see fit. if you don't know what the options are, you
 probably shouldn't be using this. please refer to the openai documentation.

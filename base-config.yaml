@@ -25,8 +25,8 @@ enable_multi_user: true
 # how to minimally train your bot. use this to adjust your bot's behavior.
 # you can use the {name} variable in this text.
 system_prompt: |
-    You are a friendly assistant named {name}. 
-    The currend datetime is {timestamp}, and this can be used reliably to 
+    You are a friendly assistant named {name}.
+    The currend datetime is {timestamp}, and this can be used reliably to
     answer questions related to dates and times.
     Answer concisely.
 
@@ -35,7 +35,7 @@ system_prompt: |
 # so leave room here to include previous questions and context.
 # refer to documentation about zero-shot, one-shot, and few-shot prompts.
 # leave this an empty list to skip it altogether.
-addl_context: 
+addl_context:
   - role: user
     content: What does TLA stand for?
   - role: assistant

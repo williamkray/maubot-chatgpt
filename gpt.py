@@ -54,7 +54,7 @@ class GPTPlugin(Plugin):
                 user = self.client.parse_user_id(event.sender)[0] + ': ' # only use the localpart
 
         # keep track of all messages, even if the bot sent them
-        self.prev_room_events[event.room_id].append({"role": role , "content": 
+        self.prev_room_events[event.room_id].append({"role": role , "content":
                                                      user + event['content']['body']})
 
         # if the bot sent the message or another command was issued, just pass
@@ -78,7 +78,7 @@ class GPTPlugin(Plugin):
                 system_prompt = {"role": "system", "content": prompt}
 
                 await event.mark_read()
-                
+
                 context = self.prev_room_events.get(event.room_id, [])
                 # if our short history is already at max capacity, drop the oldest messages
                 # to make room for our more important system prompt(s)
@@ -108,7 +108,7 @@ class GPTPlugin(Plugin):
                 # Call the chatGPT API to get a response
                 await self.client.set_typing(event.room_id, timeout=99999)
                 response = await self._call_gpt(context)
-                
+
                 # Send the response back to the chat room
                 await self.client.set_typing(event.room_id, timeout=0)
                 await event.respond(f"{response}")
@@ -140,7 +140,7 @@ class GPTPlugin(Plugin):
             "messages": full_context,
             "max_tokens": self.config['max_tokens']
         }
-        
+
         async with self.http.post(
             GPT_API_URL, headers=headers, data=json.dumps(data)
         ) as response:

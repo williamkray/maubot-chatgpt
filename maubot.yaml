@@ -7,4 +7,4 @@ main_class: GPTPlugin
 config: true
 extra_files:
   - base-config.yaml
-database: false 
+database: false
