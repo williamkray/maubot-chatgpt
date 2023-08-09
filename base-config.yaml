@@ -3,6 +3,11 @@ gpt_api_key: somestring
 model: gpt-3.5-turbo
 max_tokens: 2500
 
+# The command to talk to chatgpt. Set to empty string '' to disable command
+# prefix. When disabled, the bot will repond to all messages (except those
+# it sent and other commands that start with !)
+command_prefix: gpt
+
 # allowed users who can make calls to the openAI APIs. an empty list
 # means everyone is allowed.
 allowed_users: []
@@ -25,8 +30,8 @@ enable_multi_user: true
 # how to minimally train your bot. use this to adjust your bot's behavior.
 # you can use the {name} variable in this text.
 system_prompt: |
-    You are a friendly assistant named {name}. 
-    The currend datetime is {timestamp}, and this can be used reliably to 
+    You are a friendly assistant named {name}.
+    The currend datetime is {timestamp}, and this can be used reliably to
     answer questions related to dates and times.
     Answer concisely.
 
@@ -35,7 +40,7 @@ system_prompt: |
 # so leave room here to include previous questions and context.
 # refer to documentation about zero-shot, one-shot, and few-shot prompts.
 # leave this an empty list to skip it altogether.
-addl_context: 
+addl_context:
   - role: user
     content: What does TLA stand for?
   - role: assistant

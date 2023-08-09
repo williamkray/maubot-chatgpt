@@ -27,6 +27,8 @@ class Config(BaseProxyConfig):
         helper.copy("name")
         helper.copy("allowed_users")
         helper.copy("addl_context")
+        helper.copy("command_prefix")
+
 
 class GPTPlugin(Plugin):
 
@@ -45,6 +47,7 @@ class GPTPlugin(Plugin):
         user = ''
         content = ''
         timestamp = datetime.today().strftime('%Y-%m-%d %H:%M:%S')
+        command_prefix = self.config['command_prefix']
 
         if event.sender == self.client.mxid:
             role = 'assistant'
@@ -54,12 +57,17 @@ class GPTPlugin(Plugin):
                 user = self.client.parse_user_id(event.sender)[0] + ': ' # only use the localpart
 
         # keep track of all messages, even if the bot sent them
-        self.prev_room_events[event.room_id].append({"role": role , "content": 
+        self.prev_room_events[event.room_id].append({"role": role , "content":
                                                      user + event['content']['body']})
 
-        # if the bot sent the message or another command was issued, just pass
-        if event.sender == self.client.mxid or event.content.body.startswith('!'):
+        # if the bot sent the message just pass
+        if event.sender == self.client.mxid:
             return
+
+        if len(command_prefix) > 0 and not event.content.body.startswith(f"!{command_prefix}"):
+            return  # ignore a comand does not match the required prefix
+        if len(command_prefix) == 0 and event.content.body.startswith(f'!'):
+            return  # ignore all commands when prefix is disabled
 
         joined_members = await self.client.get_joined_members(event.room_id)
 
@@ -78,7 +86,7 @@ class GPTPlugin(Plugin):
                 system_prompt = {"role": "system", "content": prompt}
 
                 await event.mark_read()
-                
+
                 context = self.prev_room_events.get(event.room_id, [])
                 # if our short history is already at max capacity, drop the oldest messages
                 # to make room for our more important system prompt(s)
@@ -108,7 +116,7 @@ class GPTPlugin(Plugin):
                 # Call the chatGPT API to get a response
                 await self.client.set_typing(event.room_id, timeout=99999)
                 response = await self._call_gpt(context)
-                
+
                 # Send the response back to the chat room
                 await self.client.set_typing(event.room_id, timeout=0)
                 await event.respond(f"{response}")
@@ -140,7 +148,7 @@ class GPTPlugin(Plugin):
             "messages": full_context,
             "max_tokens": self.config['max_tokens']
         }
-        
+
         async with self.http.post(
             GPT_API_URL, headers=headers, data=json.dumps(data)
         ) as response:
@@ -154,7 +162,7 @@ class GPTPlugin(Plugin):
             #self.log.debug(content)
             return content
 
-    @command.new(name='gpt', help='control chatGPT functionality', require_subcommand=True)
+    @command.new(name=f"self.config['command_prefix']", help='control chatGPT functionality', require_subcommand=True)
     async def gpt(self, evt: MessageEvent) -> None:
         pass
 
@@ -163,9 +171,7 @@ class GPTPlugin(Plugin):
         self.prev_room_events.pop(evt.room_id)
         await evt.react('✅')
 
-
     @classmethod
     def get_config_class(cls) -> Type[BaseProxyConfig]:
         return Config
-
 

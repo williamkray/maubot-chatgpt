@@ -1,6 +1,6 @@
-# chatGPT 
+# chatGPT
 
-maubot plugin to allow your maubot instance to return queries from openAI GPT API endpoints. 
+maubot plugin to allow your maubot instance to return queries from openAI GPT API endpoints.
 
 add your openAI API key to the config, and modify as you see fit. if you don't know what the options are, you
 probably shouldn't be using this. please refer to the openai documentation.
@@ -10,3 +10,8 @@ recently sent in the current room to provide additional context to the conversat
 have reasonable success with contextual follow-up questions, but may be seen as a significant security leak for
 private rooms, and you may be using significantly more tokens than you think with each request. use this bot responsibly.
 
+## Getting Started
+Clone the repo and build the plugin with
+```bash
+zip -9r org.jobmachine.chatgpt.mbp *
+```
