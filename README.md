@@ -10,3 +10,8 @@ recently sent in the current room to provide additional context to the conversat
 have reasonable success with contextual follow-up questions, but may be seen as a significant security leak for
 private rooms, and you may be using significantly more tokens than you think with each request. use this bot responsibly.
 
+## Getting Started
+Clone the repo and build the plugin with
+```bash
+zip -9r org.jobmachine.chatgpt.mbp *
+```

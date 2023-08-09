@@ -3,6 +3,11 @@ gpt_api_key: somestring
 model: gpt-3.5-turbo
 max_tokens: 2500
 
+# The command to talk to chatgpt. Set to empty string '' to disable command
+# prefix. When disabled, the bot will repond to all messages (except those
+# it sent and other commands that start with !)
+command_prefix: gpt
+
 # allowed users who can make calls to the openAI APIs. an empty list
 # means everyone is allowed.
 allowed_users: []

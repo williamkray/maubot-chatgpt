@@ -27,6 +27,8 @@ class Config(BaseProxyConfig):
         helper.copy("name")
         helper.copy("allowed_users")
         helper.copy("addl_context")
+        helper.copy("command_prefix")
+
 
 class GPTPlugin(Plugin):
 
@@ -45,6 +47,7 @@ class GPTPlugin(Plugin):
         user = ''
         content = ''
         timestamp = datetime.today().strftime('%Y-%m-%d %H:%M:%S')
+        command_prefix = self.config['command_prefix']
 
         if event.sender == self.client.mxid:
             role = 'assistant'
@@ -57,9 +60,14 @@ class GPTPlugin(Plugin):
         self.prev_room_events[event.room_id].append({"role": role , "content":
                                                      user + event['content']['body']})
 
-        # if the bot sent the message or another command was issued, just pass
-        if event.sender == self.client.mxid or event.content.body.startswith('!'):
+        # if the bot sent the message just pass
+        if event.sender == self.client.mxid:
             return
+
+        if len(command_prefix) > 0 and not event.content.body.startswith(f"!{command_prefix}"):
+            return  # ignore a comand does not match the required prefix
+        if len(command_prefix) == 0 and event.content.body.startswith(f'!'):
+            return  # ignore all commands when prefix is disabled
 
         joined_members = await self.client.get_joined_members(event.room_id)
 
@@ -154,7 +162,7 @@ class GPTPlugin(Plugin):
             #self.log.debug(content)
             return content
 
-    @command.new(name='gpt', help='control chatGPT functionality', require_subcommand=True)
+    @command.new(name=f"self.config['command_prefix']", help='control chatGPT functionality', require_subcommand=True)
     async def gpt(self, evt: MessageEvent) -> None:
         pass
 
@@ -163,9 +171,7 @@ class GPTPlugin(Plugin):
         self.prev_room_events.pop(evt.room_id)
         await evt.react('✅')
 
-
     @classmethod
     def get_config_class(cls) -> Type[BaseProxyConfig]:
         return Config
-
 
