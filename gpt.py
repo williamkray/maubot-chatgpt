@@ -150,7 +150,7 @@ class GPTPlugin(Plugin):
             content = response_json["choices"][0]["message"]["content"]
             # strip off extra colons which the model seems to keep adding no matter how
             # much you tell it not to
-            content = re.sub('^\w?\:+\s+', '', content)
+            content = re.sub('^\w*\:+\s+', '', content)
             #self.log.debug(content)
             return content
 
