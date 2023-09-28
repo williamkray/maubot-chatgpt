@@ -1,7 +1,20 @@
 gpt_api_key: somestring
 
 model: gpt-3.5-turbo
-max_tokens: 2500
+
+# The maximum number of tokens to generate in the chat completion.
+# Leave blank to allow unlimited response length.
+# Note that is max_tokens + tokens in the input must be less than model's maximum context.
+max_tokens:
+
+# The maximum number of words allowed to in the input.
+# This includes the system prompt, additional context, and previous messages.
+# On average, there are 1.2 tokens per word.
+max_words: 1000
+
+# Maximum number of previous messages to include in input.
+# Usually max_words is reached before max_context_messages.
+max_context_messages: 20
 
 # What sampling temperature to use, between 0 and 2.
 # Higher values like 0.8 will make the output more random,
@@ -20,18 +33,21 @@ allowed_users: []
 # more than one user in them
 name: ''
 
+# Reply to queries in a thread and keep context within that thread.
+reply_in_thread: True
+
 # whether to enable multi-user awareness. this prefixes every context message
-# with the localpart of the sender of that message, and adds a system prompt
+# with the display name of the sender of that message, and adds a system prompt
 # informing the model of that fact. this increases personal data shared with
 # openAI as well as your used token count, but makes the bot work a little better
 # in multi-person chat rooms
 enable_multi_user: true
 
 # how to minimally train your bot. use this to adjust your bot's behavior.
-# you can use the {name} variable in this text.
+# you can use the {name} and {timestamp} variables in this text.
 system_prompt: |
     You are a friendly assistant named {name}. 
-    The currend datetime is {timestamp}, and this can be used reliably to 
+    The current datetime is {timestamp}, and this can be used reliably to 
     answer questions related to dates and times.
     Answer concisely.
 
