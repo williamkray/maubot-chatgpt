@@ -36,6 +36,10 @@ name: ''
 # Reply to queries in a thread and keep context within that thread.
 reply_in_thread: True
 
+# Respond to replies to the bot's messages in addition to references the bot by name.
+# This should probably be disabled if the bot's account is running any other plugins.
+respond_to_replies: False
+
 # whether to enable multi-user awareness. this prefixes every context message
 # with the display name of the sender of that message, and adds a system prompt
 # informing the model of that fact. this increases personal data shared with

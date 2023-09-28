@@ -30,6 +30,7 @@ class Config(BaseProxyConfig):
         helper.copy("max_context_messages")
         helper.copy("reply_in_thread")
         helper.copy("temperature")
+        helper.copy("respond_to_replies")
 
 class GPTPlugin(Plugin):
 
@@ -67,6 +68,12 @@ class GPTPlugin(Plugin):
         if self.config['reply_in_thread'] and event.content.relates_to.rel_type == RelationType.THREAD:
             parent_event = await self.client.get_event(room_id=event.room_id, event_id=event.content.get_thread_parent())
             return await self.should_respond(parent_event)
+
+        # Reply to messages replying to the bot
+        if self.config['respond_to_replies'] and event.content.relates_to.in_reply_to:
+            parent_event = await self.client.get_event(room_id=event.room_id, event_id=event.content.get_reply_to())
+            if parent_event.sender == self.client.mxid:
+                return True
 
         return False
 
