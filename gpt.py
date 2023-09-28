@@ -27,6 +27,7 @@ class Config(BaseProxyConfig):
         helper.copy("name")
         helper.copy("allowed_users")
         helper.copy("addl_context")
+        helper.copy("temperature")
 
 class GPTPlugin(Plugin):
 
@@ -138,7 +139,8 @@ class GPTPlugin(Plugin):
         data = {
             "model": self.config['model'],
             "messages": full_context,
-            "max_tokens": self.config['max_tokens']
+            "max_tokens": self.config['max_tokens'],
+            "temperature": self.config['temperature'],
         }
         
         async with self.http.post(

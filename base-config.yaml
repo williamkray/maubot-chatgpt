@@ -3,6 +3,11 @@ gpt_api_key: somestring
 model: gpt-3.5-turbo
 max_tokens: 2500
 
+# What sampling temperature to use, between 0 and 2.
+# Higher values like 0.8 will make the output more random,
+# while lower values like 0.2 will make it more focused and deterministic
+temperature: 1
+
 # allowed users who can make calls to the openAI APIs. an empty list
 # means everyone is allowed.
 allowed_users: []
