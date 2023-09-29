@@ -10,11 +10,10 @@ from collections import deque, defaultdict
 from maubot.handlers import command, event
 from maubot import Plugin, MessageEvent
 from mautrix.errors import MNotFound, MatrixRequestError
-from mautrix.types import TextMessageEventContent, EventType, RoomID, UserID, MessageType
+from mautrix.types import TextMessageEventContent, EventType, RoomID, UserID, MessageType, RelationType, EncryptedEvent
 from mautrix.util.config import BaseProxyConfig, ConfigUpdateHelper
 
 GPT_API_URL = "https://api.openai.com/v1/chat/completions"
-EVENT_CACHE_LENGTH = 10
 
 
 class Config(BaseProxyConfig):
@@ -27,108 +26,83 @@ class Config(BaseProxyConfig):
         helper.copy("name")
         helper.copy("allowed_users")
         helper.copy("addl_context")
+        helper.copy("max_words")
+        helper.copy("max_context_messages")
+        helper.copy("reply_in_thread")
+        helper.copy("temperature")
+        helper.copy("respond_to_replies")
 
 class GPTPlugin(Plugin):
 
-    prev_room_events: Dict[RoomID, Deque[Dict]]
+    name: str # name of the bot
 
     async def start(self) -> None:
         await super().start()
         self.config.load_and_update()
-        self.name = self.config['name'] if self.config['name'] else self.client.parse_user_id(self.client.mxid)[0]
+        self.name = self.config['name'] or await self.client.get_displayname(self.client.mxid)
         self.log.debug(f"DEBUG gpt plugin started with bot name: {self.name}")
-        self.prev_room_events = defaultdict(lambda: deque(maxlen=EVENT_CACHE_LENGTH))
+
+
+    async def should_respond(self, event: MessageEvent) -> bool:
+        """ Determine if we should respond to an event """
+
+        if (event.sender == self.client.mxid or  # Ignore ourselves
+                event.content.body.startswith('!') or # Ignore commands
+                event.content['msgtype'] != MessageType.TEXT or  # Don't respond to media or notices
+                event.content.relates_to['rel_type'] == RelationType.REPLACE):  # Ignore edits
+            return False
+
+        if len(self.config['allowed_users']) > 0 and event.sender not in self.config['allowed_users']:
+            await event.respond("sorry, you're not allowed to use this functionality.")
+            return False
+
+        # Check if the message contains the bot's ID
+        if re.search("(^|\s)(@)?" + self.name + "([ :,.!?]|$)", event.content.body, re.IGNORECASE):
+            return True
+
+        # Reply to all DMs
+        if len(await self.client.get_joined_members(event.room_id)) == 2:
+            return True
+
+        # Reply to threads if the thread's parent should be replied to
+        if self.config['reply_in_thread'] and event.content.relates_to.rel_type == RelationType.THREAD:
+            parent_event = await self.client.get_event(room_id=event.room_id, event_id=event.content.get_thread_parent())
+            return await self.should_respond(parent_event)
+
+        # Reply to messages replying to the bot
+        if self.config['respond_to_replies'] and event.content.relates_to.in_reply_to:
+            parent_event = await self.client.get_event(room_id=event.room_id, event_id=event.content.get_reply_to())
+            if parent_event.sender == self.client.mxid:
+                return True
+
+        return False
+
 
     @event.on(EventType.ROOM_MESSAGE)
     async def on_message(self, event: MessageEvent) -> None:
-        role = ''
-        user = ''
-        content = ''
-        timestamp = datetime.today().strftime('%Y-%m-%d %H:%M:%S')
 
-        if event.sender == self.client.mxid:
-            role = 'assistant'
-        else:
-            role = 'user'
-            if self.config['enable_multi_user']:
-                user = self.client.parse_user_id(event.sender)[0] + ': ' # only use the localpart
-
-        # keep track of all messages, even if the bot sent them
-        self.prev_room_events[event.room_id].append({"role": role , "content": 
-                                                     user + event['content']['body']})
-
-        # if the bot sent the message or another command was issued, just pass
-        if event.sender == self.client.mxid or event.content.body.startswith('!'):
+        if not await self.should_respond(event):
             return
 
-        joined_members = await self.client.get_joined_members(event.room_id)
-
         try:
-            # Check if the message contains the bot's ID
-            match_name = re.search("(^|\s)(@)?" + self.name + "([ :,.!?]|$)", event.content.body, re.IGNORECASE)
-            if match_name or len(joined_members) == 2:
-                if event.content.msgtype == MessageType.NOTICE:
-                    return # don't respond to other bot messages
+            context = await self.get_context(event)
+            await event.mark_read()
 
-                if len(self.config['allowed_users']) > 0 and event.sender not in self.config['allowed_users']:
-                    await event.respond("sorry, you're not allowed to use this functionality.")
-                    return
+            # Call the chatGPT API to get a response
+            await self.client.set_typing(event.room_id, timeout=99999)
+            response = await self._call_gpt(context)
 
-                prompt = self.config['system_prompt'].format(name=self.name, timestamp=timestamp)
-                system_prompt = {"role": "system", "content": prompt}
-
-                await event.mark_read()
-                
-                context = self.prev_room_events.get(event.room_id, [])
-                # if our short history is already at max capacity, drop the oldest messages
-                # to make room for our more important system prompt(s)
-                addl_context = json.loads(json.dumps(self.config['addl_context']))
-                # full prompt count is number of messages provided in config, plus system prompt
-                prompt_count = len(addl_context) + 1
-
-                # too many prompts? that's a problem, just bomb out.
-                # we'll always want to save the last message in the cache because that's our prompt
-                if prompt_count > EVENT_CACHE_LENGTH - 1:
-                    await event.respond("sorry, my configuration has too many prompts and i'll never see your message.\
-                                        update my config to have fewer messages and i'll be able to answer your\
-                                        questions!")
-                    return
-
-                # find out how many spots we need to open up to prepend our prompts
-                if prompt_count >= EVENT_CACHE_LENGTH - len(context):
-                    for c in range(1, prompt_count):
-                        context.popleft()
-
-                for m in addl_context:
-                    context.appendleft(addl_context.pop())
-                context.appendleft(system_prompt)
-
-                #self.log.debug(f"CONTEXT: {context}")
-
-                # Call the chatGPT API to get a response
-                await self.client.set_typing(event.room_id, timeout=99999)
-                response = await self._call_gpt(context)
-                
-                # Send the response back to the chat room
-                await self.client.set_typing(event.room_id, timeout=0)
-                await event.respond(f"{response}")
+            # Send the response back to the chat room
+            await self.client.set_typing(event.room_id, timeout=0)
+            await event.respond(f"{response}", in_thread=self.config['reply_in_thread'])
         except Exception as e:
-            self.log.error(f"Something went wrong: {e}")
+            self.log.exception(f"Something went wrong: {e}")
+            await event.respond(f"Something went wrong: {e}")
             pass
 
     async def _call_gpt(self, prompt):
         full_context = []
-        if self.config['enable_multi_user']:
-            full_context.append({'role': 'system', 'content': 'user messages are in the context of\
-                    multiperson chatrooms. each message indicates its sender by prefixing\
-                    the message with the sender\'s name followed by a colon, such as this example:\
-                    \
-                    "username: hello world."\
-                    \
-                    in this case, the user called "username" sent the\
-                    message "hello world.". you should not follow this convention in your responses.\
-                    your response instead could be "hello username!" without including any colons,\
-                    because you are the only one sending your responses there is no need to prefix them.'})
+
 
         full_context.extend(list(prompt))
         headers = {
@@ -138,9 +112,12 @@ class GPTPlugin(Plugin):
         data = {
             "model": self.config['model'],
             "messages": full_context,
-            "max_tokens": self.config['max_tokens']
+            "max_tokens": self.config['max_tokens'],
+            "temperature": self.config['temperature'],
         }
-        
+
+        self.log.debug("CONTEXT:\n" + "\n".join([f'{m["role"]}: {m["content"]}' for m in full_context]))
+
         async with self.http.post(
             GPT_API_URL, headers=headers, data=json.dumps(data)
         ) as response:
@@ -148,21 +125,84 @@ class GPTPlugin(Plugin):
                 return f"Error: {await response.text()}"
             response_json = await response.json()
             content = response_json["choices"][0]["message"]["content"]
+            self.log.debug(f'GPT tokens used: {response_json["usage"]}')
             # strip off extra colons which the model seems to keep adding no matter how
             # much you tell it not to
-            content = re.sub('^\w?\:+\s+', '', content)
-            #self.log.debug(content)
+            content = re.sub('^\w*\:+\s+', '', content)
             return content
 
     @command.new(name='gpt', help='control chatGPT functionality', require_subcommand=True)
     async def gpt(self, evt: MessageEvent) -> None:
         pass
 
-    @gpt.subcommand("clear", help="clear the cache of context and return the bot to its original system prompt")
-    async def clear_cache(self, evt: MessageEvent) -> None:
-        self.prev_room_events.pop(evt.room_id)
-        await evt.react('✅')
 
+    async def get_context(self, event: MessageEvent):
+
+        system_context = deque()
+        timestamp = datetime.today().strftime('%Y-%m-%d %H:%M:%S')
+        system_prompt = {"role": "system",
+                         "content": self.config['system_prompt'].format(name=self.name, timestamp=timestamp)}
+        if self.config['enable_multi_user']:
+            system_prompt["content"] += """
+User messages are in the context of multiperson chatrooms.
+Each message indicates its sender by prefixing the message with the sender's name followed by a colon, for example:
+"username: hello world."
+In this case, the user called "username" sent the message "hello world.". You should not follow this convention in your responses.
+your response instead could be "hello username!" without including any colons, because you are the only one sending your responses there is no need to prefix them.
+"""
+        system_context.append(system_prompt)
+
+        addl_context = json.loads(json.dumps(self.config['addl_context']))
+        if addl_context:
+            for item in addl_context:
+                system_context.append(item)
+            if len(addl_context) > self.config["max_context_messages"] - 1:
+                raise ValueError(f"sorry, my configuration has too many additional prompts "
+                                 f"({self.config['max_context_messages']}) and i'll never see your message. "
+                                    f"Update my config to have fewer messages and i'll be able to answer your questions!")
+
+
+        chat_context = deque()
+        word_count = sum([len(m["content"].split()) for m in system_context])
+        message_count = len(system_context) - 1
+        async for next_event in self.generate_context_messages(event):
+
+            if not next_event.content['msgtype'].is_text:
+                continue
+
+            role = 'assistant' if next_event.sender == self.client.mxid else 'user'
+            message = next_event['content']['body']
+            user = ''
+            if self.config['enable_multi_user']:
+                user = (await self.client.get_displayname(next_event.sender)) + ": "
+
+            word_count += len(message.split())
+            message_count += 1
+            if word_count >= self.config['max_words'] or message_count >= self.config['max_context_messages']:
+                break
+
+            chat_context.appendleft({"role": role, "content": user + message})
+
+        return system_context + chat_context
+
+    async def generate_context_messages(self, evt: MessageEvent):
+        yield evt
+        if self.config['reply_in_thread']:
+            while evt.content.relates_to.in_reply_to:
+                evt = await self.client.get_event(room_id=evt.room_id, event_id=evt.content.get_reply_to())
+                yield evt
+        else:
+            event_context = await self.client.get_event_context(room_id=evt.room_id, event_id=evt.event_id, limit=self.config["max_context_messages"]*2)
+            previous_messages = iter(event_context.events_before)
+            for evt in previous_messages:
+
+                # We already have the event, but currently, get_event_context doesn't automatically decrypt events
+                if isinstance(evt, EncryptedEvent) and self.client.crypto:
+                    evt = await self.client.get_event(event_id=evt.event_id, room_id=evt.room_id)
+                    if not evt:
+                        raise ValueError("Decryption error!")
+
+                yield evt
 
     @classmethod
     def get_config_class(cls) -> Type[BaseProxyConfig]:
