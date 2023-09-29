@@ -10,7 +10,7 @@ from collections import deque, defaultdict
 from maubot.handlers import command, event
 from maubot import Plugin, MessageEvent
 from mautrix.errors import MNotFound, MatrixRequestError
-from mautrix.types import TextMessageEventContent, EventType, RoomID, UserID, MessageType, RelationType
+from mautrix.types import TextMessageEventContent, EventType, RoomID, UserID, MessageType, RelationType, EncryptedEvent
 from mautrix.util.config import BaseProxyConfig, ConfigUpdateHelper
 
 GPT_API_URL = "https://api.openai.com/v1/chat/completions"
@@ -167,6 +167,9 @@ your response instead could be "hello username!" without including any colons, b
         message_count = len(system_context) - 1
         async for next_event in self.generate_context_messages(event):
 
+            if not next_event.content['msgtype'].is_text:
+                continue
+
             role = 'assistant' if next_event.sender == self.client.mxid else 'user'
             message = next_event['content']['body']
             user = ''
@@ -192,6 +195,13 @@ your response instead could be "hello username!" without including any colons, b
             event_context = await self.client.get_event_context(room_id=evt.room_id, event_id=evt.event_id, limit=self.config["max_context_messages"]*2)
             previous_messages = iter(event_context.events_before)
             for evt in previous_messages:
+
+                # We already have the event, but currently, get_event_context doesn't automatically decrypt events
+                if isinstance(evt, EncryptedEvent) and self.client.crypto:
+                    evt = await self.client.get_event(event_id=evt.event_id, room_id=evt.room_id)
+                    if not evt:
+                        raise ValueError("Decryption error!")
+
                 yield evt
 
     @classmethod
