@@ -39,7 +39,9 @@ class GPTPlugin(Plugin):
     async def start(self) -> None:
         await super().start()
         self.config.load_and_update()
-        self.name = self.config['name'] or await self.client.get_displayname(self.client.mxid)
+        self.name = self.config['name'] or \
+            await self.client.get_displayname(self.client.mxid) or \
+            self.client.parse_user_id(self.client.mxid)[0]
         self.log.debug(f"DEBUG gpt plugin started with bot name: {self.name}")
 
 
@@ -174,7 +176,8 @@ your response instead could be "hello username!" without including any colons, b
             message = next_event['content']['body']
             user = ''
             if self.config['enable_multi_user']:
-                user = (await self.client.get_displayname(next_event.sender)) + ": "
+                user = (await self.client.get_displayname(next_event.sender) or \
+                            self.client.parse_user_id(next_event.sender)[0]) + ": "
 
             word_count += len(message.split())
             message_count += 1
