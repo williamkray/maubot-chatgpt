@@ -10,7 +10,8 @@ from collections import deque, defaultdict
 from maubot.handlers import command, event
 from maubot import Plugin, MessageEvent
 from mautrix.errors import MNotFound, MatrixRequestError
-from mautrix.types import TextMessageEventContent, EventType, RoomID, UserID, MessageType, RelationType, EncryptedEvent
+from mautrix.types import Format, TextMessageEventContent, EventType, RoomID, UserID, MessageType, RelationType, EncryptedEvent
+from mautrix.util import markdown
 from mautrix.util.config import BaseProxyConfig, ConfigUpdateHelper
 
 GPT_API_URL = "https://api.openai.com/v1/chat/completions"
@@ -71,10 +72,10 @@ class GPTPlugin(Plugin):
             parent_event = await self.client.get_event(room_id=event.room_id, event_id=event.content.get_thread_parent())
             return await self.should_respond(parent_event)
 
-        # Reply to messages replying to the bot
-        if self.config['respond_to_replies'] and event.content.relates_to.in_reply_to:
+        # Reply to messages replying to the bot by checking if the parent message as the `org.jobmachine.chatgpt` key
+        if event.content.relates_to.in_reply_to:
             parent_event = await self.client.get_event(room_id=event.room_id, event_id=event.content.get_reply_to())
-            if parent_event.sender == self.client.mxid:
+            if parent_event.sender == self.client.mxid and "org.jobmachine.chatgpt" in parent_event.content:
                 return True
 
         return False
@@ -96,7 +97,12 @@ class GPTPlugin(Plugin):
 
             # Send the response back to the chat room
             await self.client.set_typing(event.room_id, timeout=0)
-            await event.respond(f"{response}", in_thread=self.config['reply_in_thread'])
+
+            content = TextMessageEventContent(msgtype=MessageType.NOTICE, body=response, format=Format.HTML,
+                                              formatted_body=markdown.render(response))
+            content["org.jobmachine.chatgpt"] = True
+            await event.respond(content, in_thread=self.config['reply_in_thread'])
+
         except Exception as e:
             self.log.exception(f"Something went wrong: {e}")
             await event.respond(f"Something went wrong: {e}")
@@ -131,7 +137,7 @@ class GPTPlugin(Plugin):
             # strip off extra colons which the model seems to keep adding no matter how
             # much you tell it not to
             content = re.sub('^\w*\:+\s+', '', content)
-            return content
+            return str(content)
 
     @command.new(name='gpt', help='control chatGPT functionality', require_subcommand=True)
     async def gpt(self, evt: MessageEvent) -> None:
