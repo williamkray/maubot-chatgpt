@@ -36,10 +36,6 @@ name: ''
 # Reply to queries in a thread and keep context within that thread.
 reply_in_thread: True
 
-# Respond to replies to the bot's messages in addition to references the bot by name.
-# This should probably be disabled if the bot's account is running any other plugins.
-respond_to_replies: False
-
 # whether to enable multi-user awareness. this prefixes every context message
 # with the display name of the sender of that message, and adds a system prompt
 # informing the model of that fact. this increases personal data shared with
@@ -56,7 +52,7 @@ system_prompt: |
     Answer concisely.
 
 # additional context to provide in the prompts.
-# keep in mind the max number of context messages is 10 across all rooms,
+# keep in mind this counts towards max_context_messages,
 # so leave room here to include previous questions and context.
 # refer to documentation about zero-shot, one-shot, and few-shot prompts.
 # leave this an empty list to skip it altogether.
