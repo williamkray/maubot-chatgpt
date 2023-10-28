@@ -4,7 +4,7 @@ import os
 import re
 from datetime import datetime
 
-from typing import Type, Deque, Dict
+from typing import Type, Deque, Dict, Generator
 from mautrix.client import Client
 from collections import deque, defaultdict
 from maubot.handlers import command, event
@@ -169,7 +169,11 @@ your response instead could be "hello username!" without including any colons, b
         message_count = len(system_context) - 1
         async for next_event in self.generate_context_messages(event):
 
-            if not next_event.content['msgtype'].is_text:
+            # Ignore events that aren't text messages
+            try:
+                if not next_event.content.msgtype.is_text:
+                    continue
+            except (KeyError,  AttributeError):
                 continue
 
             role = 'assistant' if next_event.sender == self.client.mxid else 'user'
@@ -188,7 +192,7 @@ your response instead could be "hello username!" without including any colons, b
 
         return system_context + chat_context
 
-    async def generate_context_messages(self, evt: MessageEvent):
+    async def generate_context_messages(self, evt: MessageEvent) -> Generator[MessageEvent, None, None]:
         yield evt
         if self.config['reply_in_thread']:
             while evt.content.relates_to.in_reply_to:
