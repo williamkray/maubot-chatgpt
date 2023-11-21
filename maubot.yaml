@@ -1,9 +1,9 @@
 maubot: 0.1.0
-id: org.jobmachine.chatgpt
-version: 0.0.9
+id: org.jobmachine.badgpt
+version: 0.0.1
 modules:
-  - gpt
-main_class: GPTPlugin
+  - badgpt
+main_class: BadGPTPlugin
 config: true
 extra_files:
   - base-config.yaml
