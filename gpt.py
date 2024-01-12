@@ -14,11 +14,12 @@ from mautrix.types import Format, TextMessageEventContent, EventType, RoomID, Us
 from mautrix.util import markdown
 from mautrix.util.config import BaseProxyConfig, ConfigUpdateHelper
 
-GPT_API_URL = "https://api.openai.com/v1/chat/completions"
+#GPT_API_URL = "https://api.openai.com/v1/chat/completions"
 
 
 class Config(BaseProxyConfig):
     def do_update(self, helper: ConfigUpdateHelper) -> None:
+        helper.copy("api_endpoint")
         helper.copy("gpt_api_key")
         helper.copy("model")
         helper.copy("max_tokens")
@@ -43,7 +44,9 @@ class GPTPlugin(Plugin):
         self.name = self.config['name'] or \
             await self.client.get_displayname(self.client.mxid) or \
             self.client.parse_user_id(self.client.mxid)[0]
+        self.api_endpoint = self.config['api_endpoint']
         self.log.debug(f"DEBUG gpt plugin started with bot name: {self.name}")
+        self.log.debug(f"DEBUG gpt endpoint set: {self.api_endpoint}")
 
 
     async def should_respond(self, event: MessageEvent) -> bool:
@@ -127,7 +130,7 @@ class GPTPlugin(Plugin):
         self.log.debug("CONTEXT:\n" + "\n".join([f'{m["role"]}: {m["content"]}' for m in full_context]))
 
         async with self.http.post(
-            GPT_API_URL, headers=headers, data=json.dumps(data)
+            self.api_endpoint, headers=headers, data=json.dumps(data)
         ) as response:
             if response.status != 200:
                 return f"Error: {await response.text()}"

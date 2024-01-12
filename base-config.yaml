@@ -1,5 +1,8 @@
 gpt_api_key: somestring
 
+# api endpoint to connect to. you probably don't want to change this.
+api_endpoint: https://api.openai.com/v1/chat/completions
+
 model: gpt-3.5-turbo
 
 # The maximum number of tokens to generate in the chat completion.
