@@ -14,9 +14,6 @@ from mautrix.types import Format, TextMessageEventContent, EventType, RoomID, Us
 from mautrix.util import markdown
 from mautrix.util.config import BaseProxyConfig, ConfigUpdateHelper
 
-#GPT_API_URL = "https://api.openai.com/v1/chat/completions"
-
-
 class Config(BaseProxyConfig):
     def do_update(self, helper: ConfigUpdateHelper) -> None:
         helper.copy("api_endpoint")
@@ -123,9 +120,14 @@ class GPTPlugin(Plugin):
         data = {
             "model": self.config['model'],
             "messages": full_context,
-            "max_tokens": self.config['max_tokens'],
-            "temperature": self.config['temperature'],
         }
+
+        if 'max_tokens' in self.config and self.config['max_tokens']:
+            data["max_tokens"] = self.config['max_tokens']
+
+
+        if 'temperature' in self.config and self.config['temperature']:
+            data["temperature"] = self.config['temperature']
 
         self.log.debug("CONTEXT:\n" + "\n".join([f'{m["role"]}: {m["content"]}' for m in full_context]))
 
