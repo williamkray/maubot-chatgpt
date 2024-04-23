@@ -24,6 +24,7 @@ class Config(BaseProxyConfig):
         helper.copy("system_prompt")
         helper.copy("name")
         helper.copy("allowed_users")
+        helper.copy("allowed_homeservers")
         helper.copy("addl_context")
         helper.copy("max_words")
         helper.copy("max_context_messages")
@@ -55,7 +56,9 @@ class GPTPlugin(Plugin):
                 event.content.relates_to['rel_type'] == RelationType.REPLACE):  # Ignore edits
             return False
 
-        if len(self.config['allowed_users']) > 0 and event.sender not in self.config['allowed_users']:
+        if ((len(self.config['allowed_users']) > 0 and event.sender not in self.config['allowed_users']) or
+                (len(self.config['allowed_homeservers']) > 0 
+                and re.sub("^@.*:", "", event.sender) not in self.config['allowed_homeservers'])):
             await event.respond("sorry, you're not allowed to use this functionality.")
             return False
 

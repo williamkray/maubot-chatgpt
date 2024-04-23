@@ -28,6 +28,10 @@ temperature: 1
 # means everyone is allowed.
 allowed_users: []
 
+# allowed homeservers from where all users can make calls to the openAI APIs. 
+# an empty list means everyone is allowed.
+allowed_homeservers: []
+
 # your bot's name, for reference. leave blank to use mxid localpart
 # set this to a specific value if the bot's mxid localpart does not
 # match their display nick, as clients tend to use the display nick in
