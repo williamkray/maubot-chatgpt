@@ -1,4 +1,5 @@
 # chatGPT 
+[![Chat on Matrix](https://img.shields.io/badge/chat_on_matrix-%23dev:mssj.me-green)](https://matrix.to/#/#dev:mssj.me)
 
 maubot plugin to allow your maubot instance to return queries from openAI GPT API endpoints.
 
