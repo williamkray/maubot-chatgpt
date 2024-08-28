@@ -25,7 +25,9 @@ max_context_messages: 20
 temperature: 1
 
 # allowed users who can make calls to the openAI APIs. an empty list
-# means everyone is allowed.
+# means everyone is allowed. regex is supported, e.g. to allow anyone from
+# your homeserver, use '^@.*:myhomeserver.tld$'. always wrap everything in
+# single-quotes when you can, but don't worry if maubot removes them.
 allowed_users: []
 
 # your bot's name, for reference. leave blank to use mxid localpart

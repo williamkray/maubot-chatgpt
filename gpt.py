@@ -45,6 +45,15 @@ class GPTPlugin(Plugin):
         self.log.debug(f"DEBUG gpt plugin started with bot name: {self.name}")
         self.log.debug(f"DEBUG gpt endpoint set: {self.api_endpoint}")
 
+    def user_allowed(self, mxid) -> bool:
+        for u in self.config['allowed_users']:
+            self.log.debug(f"DEBUG {mxid} vs. {u}")
+            if re.match(u, mxid):
+                return True
+            else:
+                self.log.debug(f"DEBUG {mxid} doesn't match {u}")
+                pass
+
 
     async def should_respond(self, event: MessageEvent) -> bool:
         """ Determine if we should respond to an event """
@@ -55,7 +64,7 @@ class GPTPlugin(Plugin):
                 event.content.relates_to['rel_type'] == RelationType.REPLACE):  # Ignore edits
             return False
 
-        if len(self.config['allowed_users']) > 0 and event.sender not in self.config['allowed_users']:
+        if len(self.config['allowed_users']) > 0 and not self.user_allowed(event.sender):
             await event.respond("sorry, you're not allowed to use this functionality.")
             return False
 
