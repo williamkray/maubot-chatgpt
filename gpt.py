@@ -64,13 +64,13 @@ class GPTPlugin(Plugin):
                 event.content.relates_to['rel_type'] == RelationType.REPLACE):  # Ignore edits
             return False
 
-        if len(self.config['allowed_users']) > 0 and not self.user_allowed(event.sender):
-            await event.respond("sorry, you're not allowed to use this functionality.")
-            return False
-
         # Check if the message contains the bot's ID
         if re.search("(^|\s)(@)?" + self.name + "([ :,.!?]|$)", event.content.body, re.IGNORECASE):
-            return True
+            if len(self.config['allowed_users']) > 0 and not self.user_allowed(event.sender):
+                await event.respond("sorry, you're not allowed to use this functionality.")
+                return False
+            else:
+                return True
 
         # Reply to all DMs
         if len(await self.client.get_joined_members(event.room_id)) == 2:
