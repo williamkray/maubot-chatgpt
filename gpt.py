@@ -72,9 +72,13 @@ class GPTPlugin(Plugin):
             else:
                 return True
 
-        # Reply to all DMs
+        # Reply to all DMs as long as the person is allowed
         if len(await self.client.get_joined_members(event.room_id)) == 2:
-            return True
+            if len(self.config['allowed_users']) > 0 and not self.user_allowed(event.sender):
+                await event.respond("sorry, you're not allowed to use this functionality.")
+                return False
+            else:
+                return True
 
         # Reply to threads if the thread's parent should be replied to
         if self.config['reply_in_thread'] and event.content.relates_to.rel_type == RelationType.THREAD:
