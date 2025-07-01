@@ -1,0 +1,150 @@
+# save a copy of this as config.yaml and adjust to your liking
+# Bot account details
+user:
+    credentials:
+        id: "@bot:example.com"
+        homeserver: https://example.com
+        access_token: foo
+        # If you want to enable encryption, set the device ID corresponding to the access token here.
+        # When using an appservice, you should use appservice login manually to generate a device ID and access token.
+        device_id: null
+    # Enable /sync? This is not needed for purely unencrypted webhook-based bots, but is necessary in most other cases.
+    sync: true
+    # Receive appservice transactions? This will add a /_matrix/app/v1/transactions endpoint on
+    # the HTTP server configured below. The base_path will not be applied for the /transactions path.
+    appservice: false
+    # When appservice mode is enabled, the hs_token for the appservice.
+    hs_token: null
+    # Automatically accept invites?
+    autojoin: false
+    # The displayname and avatar URL to set for the bot on startup.
+    # Set to "disable" to not change the the current displayname/avatar.
+    displayname: disable
+    avatar_url: disable
+
+    # Should events from the initial sync be ignored? This should usually always be true.
+    ignore_initial_sync: true
+    # Should events from the first sync after starting be ignored? This can be set to false
+    # if you want the bot to handle messages that were sent while the bot was down.
+    ignore_first_sync: true
+
+# Web server settings. These will only take effect if the plugin requests it using `webapp: true` in the meta file,
+# or if user -> appservice is set to true.
+server:
+    # The IP and port to listen to.
+    hostname: 0.0.0.0
+    port: 29316
+    # The base path where the plugin's web resources will be served. Unlike the normal mode,
+    # the webserver is dedicated for a single bot in standalone mode, so the default path
+    # is just /. If you want to emulate normal mode, set this to /_matrix/maubot/plugin/something
+    base_path: /
+    # The public URL where the resources are available. The base path is automatically appended to this.
+    public_url: https://example.com
+
+# The database for the plugin. Used for plugin data, the sync token and e2ee data (if enabled).
+# SQLite and Postgres are supported.
+database: sqlite:/data/bot.db
+
+# Additional arguments for asyncpg.create_pool() or sqlite3.connect()
+# https://magicstack.github.io/asyncpg/current/api/index.html#asyncpg.pool.create_pool
+# https://docs.python.org/3/library/sqlite3.html#sqlite3.connect
+# For sqlite, min_size is used as the connection thread pool size and max_size is ignored.
+database_opts:
+    min_size: 1
+    max_size: 10
+
+# Config for the plugin. Refer to the plugin's base-config.yaml to find what (if anything) to put here.
+plugin_config: 
+  gpt_api_key: sk-somegibberishrandomapikeyenteryourshere
+
+  # api endpoint to connect to. you probably don't want to change this.
+  api_endpoint: https://api.openai.com/v1/chat/completions
+
+  model: o3-mini
+
+  # The maximum number of tokens to generate in the chat completion.
+  # Leave blank to allow unlimited response length.
+  # Note that is max_tokens + tokens in the input must be less than model's maximum context.
+  max_tokens:
+
+  # The maximum number of words allowed to in the input.
+  # This includes the system prompt, additional context, and previous messages.
+  # On average, there are 1.2 tokens per word.
+  max_words: 1000
+
+  # Maximum number of previous messages to include in input.
+  # Usually max_words is reached before max_context_messages.
+  max_context_messages: 20
+
+  # What sampling temperature to use, between 0 and 2.
+  # Higher values like 0.8 will make the output more random,
+  # while lower values like 0.2 will make it more focused and deterministic
+  temperature: 1
+
+  # allowed users who can make calls to the openAI APIs. an empty list
+  # means everyone is allowed. regex is supported, e.g. to allow anyone from
+  # your homeserver, use '^@.*:myhomeserver.tld$'. always wrap everything in
+  # single-quotes when you can, but don't worry if maubot removes them.
+  allowed_users: []
+
+  # your bot's name, for reference. leave blank to use mxid localpart
+  # set this to a specific value if the bot's mxid localpart does not
+  # match their display nick, as clients tend to use the display nick in
+  # message bodies when using tab-completion.
+  # this is used as the trigger to get your bots attention in rooms with
+  # more than one user in them
+  name: ''
+
+  # Reply to queries in a thread and keep context within that thread.
+  reply_in_thread: True
+
+  # whether to enable multi-user awareness. this prefixes every context message
+  # with the display name of the sender of that message, and adds a system prompt
+  # informing the model of that fact. this increases personal data shared with
+  # openAI as well as your used token count, but makes the bot work a little better
+  # in multi-person chat rooms
+  enable_multi_user: true
+
+  # how to minimally train your bot. use this to adjust your bot's behavior.
+  # you can use the {name} and {timestamp} variables in this text.
+  system_prompt: |
+      You are a friendly assistant named {name}. 
+      The current datetime is {timestamp}, and this can be used reliably to 
+      answer questions related to dates and times.
+      Answer concisely.
+
+  # additional context to provide in the prompts.
+  # keep in mind this counts towards max_context_messages,
+  # so leave room here to include previous questions and context.
+  # refer to documentation about zero-shot, one-shot, and few-shot prompts.
+  # leave this an empty list to skip it altogether.
+  addl_context: 
+    - role: user
+      content: What does TLA stand for?
+    - role: assistant
+      content: |
+          TLA stands for 'Three Letter Acronym'. It is a self-referrential joke
+          used at large agencies and companies where acronyms are abundant.
+
+# Standard Python logging configuration
+logging:
+    version: 1
+    formatters:
+        colored:
+            (): maubot.lib.color_log.ColorFormatter
+            format: "[%(asctime)s] [%(levelname)s@%(name)s] %(message)s"
+    handlers:
+        console:
+            class: logging.StreamHandler
+            formatter: colored
+    loggers:
+        maubot:
+            level: DEBUG
+        mau:
+            level: DEBUG
+        aiohttp:
+            level: INFO
+    root:
+        level: DEBUG
+        handlers: [console]
+

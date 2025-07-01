@@ -54,6 +54,49 @@ class GPTPlugin(Plugin):
                 self.log.debug(f"DEBUG {mxid} doesn't match {u}")
                 pass
 
+    def extract_json_from_response(self, content: str) -> str:
+        """
+        Extract JSON from the model response, handling cases where the model
+        includes extra text before or after the JSON.
+        """
+        # Try to find JSON object in the response
+        # Look for JSON objects that contain both "sender" and "message" fields
+        json_pattern = r'\{[^{}]*"sender"\s*:\s*"[^"]*"[^{}]*"message"\s*:\s*"[^"]*"[^{}]*\}'
+        json_match = re.search(json_pattern, content, re.DOTALL)
+        
+        if json_match:
+            try:
+                json_str = json_match.group(0)
+                parsed_json = json.loads(json_str)
+                
+                # Validate the JSON structure
+                if "sender" in parsed_json and "message" in parsed_json:
+                    self.log.debug(f"Successfully extracted JSON: {parsed_json}")
+                    return parsed_json["message"]
+                else:
+                    self.log.warning(f"JSON found but missing required fields: {parsed_json}")
+            except json.JSONDecodeError as e:
+                self.log.warning(f"Failed to parse JSON: {e}")
+        
+        # Try a more flexible approach - look for any JSON object
+        try:
+            # Find the first { and last } to extract potential JSON
+            start = content.find('{')
+            end = content.rfind('}')
+            if start != -1 and end != -1 and end > start:
+                json_str = content[start:end+1]
+                parsed_json = json.loads(json_str)
+                if "sender" in parsed_json and "message" in parsed_json:
+                    self.log.debug(f"Successfully extracted JSON with flexible parsing: {parsed_json}")
+                    return parsed_json["message"]
+        except (json.JSONDecodeError, ValueError) as e:
+            self.log.debug(f"Flexible JSON parsing failed: {e}")
+        
+        # Fallback: if no valid JSON found, return the original content
+        # but strip any potential name prefixes
+        self.log.warning(f"No valid JSON found in response, falling back to original content")
+        content = re.sub('^\w*\:+\s+', '', content)
+        return content
 
     async def should_respond(self, event: MessageEvent) -> bool:
         """ Determine if we should respond to an event """
@@ -152,10 +195,11 @@ class GPTPlugin(Plugin):
             response_json = await response.json()
             content = response_json["choices"][0]["message"]["content"]
             self.log.debug(f'GPT tokens used: {response_json["usage"]}')
-            # strip off extra colons which the model seems to keep adding no matter how
-            # much you tell it not to
-            content = re.sub('^\w*\:+\s+', '', content)
-            return str(content)
+            self.log.debug(f'Raw response content: {content}')
+            
+            # Extract JSON from the response and return only the message content
+            extracted_message = self.extract_json_from_response(content)
+            return str(extracted_message)
 
     @command.new(name='gpt', help='control chatGPT functionality', require_subcommand=True)
     async def gpt(self, evt: MessageEvent) -> None:
@@ -166,33 +210,54 @@ class GPTPlugin(Plugin):
 
         system_context = deque()
         timestamp = datetime.today().strftime('%Y-%m-%d %H:%M:%S')
-        system_prompt = {"role": "system",
-                         "content": self.config['system_prompt'].format(name=self.name, timestamp=timestamp)}
+        # System prompt as a JSON message
+        system_prompt_content = self.config['system_prompt'].format(name=self.name, timestamp=timestamp)
+        system_prompt_instruction = (
+            'IMPORTANT: All messages in this conversation are formatted as JSON with "sender" and "message" fields. '
+            'Each message you receive will be in the format: {"sender": "username", "message": "their message"}. '
+            'You must respond with valid JSON in the following format: '
+            '{"sender": "your_name", "message": "your response content"}. '
+            'Do not include any text before or after the JSON. Only return the JSON object with your response in the "message" field.'
+        )
         if self.config['enable_multi_user']:
-            system_prompt["content"] += """
-User messages are in the context of multiperson chatrooms.
-Each message indicates its sender by prefixing the message with the sender's name followed by a colon, for example:
-"username: hello world."
-In this case, the user called "username" sent the message "hello world.". You should not follow this convention in your responses.
-your response instead could be "hello username!" without including any colons, because you are the only one sending your responses there is no need to prefix them.
-"""
-        system_context.append(system_prompt)
+            system_prompt_instruction += (
+                ' User messages are in the context of multiperson chatrooms.'
+            )
+        system_json = json.dumps({
+            "sender": "system",
+            "message": f"{system_prompt_content}\n{system_prompt_instruction}"
+        })
+        system_context.append({"role": "system", "content": system_json})
 
         addl_context = json.loads(json.dumps(self.config['addl_context']))
         if addl_context:
             for item in addl_context:
-                system_context.append(item)
+                # Convert OpenAI-style context to JSON format if needed
+                if isinstance(item, dict) and 'role' in item and 'content' in item:
+                    if item['role'] == 'user':
+                        sender = 'chat user'
+                    elif item['role'] == 'assistant':
+                        sender = self.name
+                    elif item['role'] == 'system':
+                        sender = 'system'
+                    else:
+                        sender = item['role']
+                    item_json = {"sender": sender, "message": item['content']}
+                    system_context.append({"role": item['role'], "content": json.dumps(item_json)})
+                else:
+                    # Already in JSON or unknown format, wrap as system
+                    if not (isinstance(item, dict) and "sender" in item and "message" in item):
+                        item = {"sender": "system", "message": str(item)}
+                    system_context.append({"role": "system", "content": json.dumps(item)})
             if len(addl_context) > self.config["max_context_messages"] - 1:
                 raise ValueError(f"sorry, my configuration has too many additional prompts "
                                  f"({self.config['max_context_messages']}) and i'll never see your message. "
                                     f"Update my config to have fewer messages and i'll be able to answer your questions!")
 
-
         chat_context = deque()
-        word_count = sum([len(m["content"].split()) for m in system_context])
+        word_count = sum([len(json.loads(m["content"])['message'].split()) for m in system_context])
         message_count = len(system_context) - 1
         async for next_event in self.generate_context_messages(event):
-
             # Ignore events that aren't text messages
             try:
                 if not next_event.content.msgtype.is_text:
@@ -202,17 +267,19 @@ your response instead could be "hello username!" without including any colons, b
 
             role = 'assistant' if next_event.sender == self.client.mxid else 'user'
             message = next_event['content']['body']
-            user = ''
             if self.config['enable_multi_user']:
-                user = (await self.client.get_displayname(next_event.sender) or \
-                            self.client.parse_user_id(next_event.sender)[0]) + ": "
+                sender_name = await self.client.get_displayname(next_event.sender) or \
+                            self.client.parse_user_id(next_event.sender)[0]
+            else:
+                sender_name = "chat user"
+            json_message = json.dumps({"sender": sender_name, "message": message})
 
             word_count += len(message.split())
             message_count += 1
             if word_count >= self.config['max_words'] or message_count >= self.config['max_context_messages']:
                 break
 
-            chat_context.appendleft({"role": role, "content": user + message})
+            chat_context.appendleft({"role": role, "content": json_message})
 
         return system_context + chat_context
 
