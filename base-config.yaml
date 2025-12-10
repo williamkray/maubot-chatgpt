@@ -41,6 +41,12 @@ name: ''
 # Reply to queries in a thread and keep context within that thread.
 reply_in_thread: True
 
+# whether to allow a `!summarize` command to summarize the room messages.
+# this will use the room context instead of the thread context, even if reply_in_thread is true.
+allow_summarize: false
+# whether to allow the bot to be conversational. if false, the bot will only serve as a summary tool.
+allow_responses: true
+
 # whether to enable multi-user awareness. this prefixes every context message
 # with the display name of the sender of that message, and adds a system prompt
 # informing the model of that fact. this increases personal data shared with

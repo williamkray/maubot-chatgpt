@@ -28,6 +28,8 @@ class Config(BaseProxyConfig):
         helper.copy("max_words")
         helper.copy("max_context_messages")
         helper.copy("reply_in_thread")
+        helper.copy("allow_summarize")
+        helper.copy("allow_responses")
         helper.copy("temperature")
         helper.copy("respond_to_replies")
 
@@ -58,14 +60,26 @@ class GPTPlugin(Plugin):
     async def should_respond(self, event: MessageEvent) -> bool:
         """ Determine if we should respond to an event """
 
-        if (event.sender == self.client.mxid or  # Ignore ourselves
+        if (
+                not self.config['allow_responses'] or # Ignore if allow_responses is false
+                event.sender == self.client.mxid or  # Ignore ourselves
                 event.content.body.startswith('!') or # Ignore commands
                 event.content['msgtype'] != MessageType.TEXT or  # Don't respond to media or notices
-                event.content.relates_to['rel_type'] == RelationType.REPLACE):  # Ignore edits
+                event.content.relates_to['rel_type'] == RelationType.REPLACE  # Ignore edits
+            ):
             return False
 
         # Check if the message contains the bot's ID
-        if re.search("(^|\s)(@)?" + self.name + "([ :,.!?]|$)", event.content.body, re.IGNORECASE):
+        if re.search(f"(^|[\s\>])(@)?" + self.name + "([ :,.!?]|$)", event.content.body, re.IGNORECASE):
+            if len(self.config['allowed_users']) > 0 and not self.user_allowed(event.sender):
+                await event.respond("sorry, you're not allowed to use this functionality.")
+                return False
+            else:
+                return True
+
+        # check if there is an intentional mention that missed the above regex somehow
+        # According to mautrix, mentions are held in event.content.get("m.mentions", {}).get("user_ids", [])
+        if self.client.mxid in (event.content.get("m.mentions", {}).get("user_ids", [])):
             if len(self.config['allowed_users']) > 0 and not self.user_allowed(event.sender):
                 await event.respond("sorry, you're not allowed to use this functionality.")
                 return False
@@ -161,8 +175,30 @@ class GPTPlugin(Plugin):
     async def gpt(self, evt: MessageEvent) -> None:
         pass
 
+    @command.new(name='summarize', help='generate a summary of room messages')
+    async def summarize(self, evt: MessageEvent) -> None:
+        # check if the user has permission to use this bot,
+        # and additionally if allow_summarize is true
+        if len(self.config['allowed_users']) > 0 and not self.user_allowed(evt.sender):
+            await evt.respond("sorry, you're not allowed to use this functionality.")
+            return
+        if not self.config["allow_summarize"]:
+            await evt.respond("sorry, this functionality is not enabled.")
+            return
+        # normally we only are restricted to getting context from the thread,
+        # but when explicitly asked to summarize the room messages, we can use the room context
+        # and ignore the addl_context messages when building our context
+        is_thread = evt.content.relates_to.rel_type == RelationType.THREAD
+        context = await self.get_context(evt, is_summary=True, is_thread=is_thread)
+        context.append({
+            "role": "user",
+            "content": "Summarize the following messages: " + "\n".join([m["content"] for m in context])
+        })
+        response = await self._call_gpt(context)
+        await evt.respond(response)
 
-    async def get_context(self, event: MessageEvent):
+
+    async def get_context(self, event: MessageEvent, is_summary: bool = False, is_thread: bool = False):
 
         system_context = deque()
         timestamp = datetime.today().strftime('%Y-%m-%d %H:%M:%S')
@@ -178,20 +214,27 @@ your response instead could be "hello username!" without including any colons, b
 """
         system_context.append(system_prompt)
 
-        addl_context = json.loads(json.dumps(self.config['addl_context']))
-        if addl_context:
-            for item in addl_context:
-                system_context.append(item)
-            if len(addl_context) > self.config["max_context_messages"] - 1:
-                raise ValueError(f"sorry, my configuration has too many additional prompts "
-                                 f"({self.config['max_context_messages']}) and i'll never see your message. "
-                                    f"Update my config to have fewer messages and i'll be able to answer your questions!")
+        if is_summary and not is_thread:
+            # set ignore_thread and skip processing addl_context
+            ignore_thread = True
+        elif is_summary and is_thread:
+            ignore_thread = False
+        else:
+            ignore_thread = False
+            addl_context = json.loads(json.dumps(self.config['addl_context']))
+            if addl_context:
+                for item in addl_context:
+                    system_context.append(item)
+                if len(addl_context) > self.config["max_context_messages"] - 1:
+                    raise ValueError(f"sorry, my configuration has too many additional prompts "
+                                    f"({self.config['max_context_messages']}) and i'll never see your message. "
+                                        f"Update my config to have fewer messages and i'll be able to answer your questions!")
 
 
         chat_context = deque()
         word_count = sum([len(m["content"].split()) for m in system_context])
         message_count = len(system_context) - 1
-        async for next_event in self.generate_context_messages(event):
+        async for next_event in self.generate_context_messages(event, ignore_thread):
 
             # Ignore events that aren't text messages
             try:
@@ -216,9 +259,9 @@ your response instead could be "hello username!" without including any colons, b
 
         return system_context + chat_context
 
-    async def generate_context_messages(self, evt: MessageEvent) -> Generator[MessageEvent, None, None]:
+    async def generate_context_messages(self, evt: MessageEvent, ignore_thread: bool = False) -> Generator[MessageEvent, None, None]:
         yield evt
-        if self.config['reply_in_thread']:
+        if self.config['reply_in_thread'] and not ignore_thread:
             while evt.content.relates_to.in_reply_to:
                 evt = await self.client.get_event(room_id=evt.room_id, event_id=evt.content.get_reply_to())
                 yield evt
