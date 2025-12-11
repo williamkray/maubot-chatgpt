@@ -65,7 +65,7 @@ class GPTPlugin(Plugin):
                 event.sender == self.client.mxid or  # Ignore ourselves
                 event.content.body.startswith('!') or # Ignore commands
                 event.content['msgtype'] != MessageType.TEXT or  # Don't respond to media or notices
-                event.content.relates_to['rel_type'] == RelationType.REPLACE  # Ignore edits
+                (event.content.relates_to and hasattr(event.content.relates_to, 'rel_type') and event.content.relates_to.rel_type == RelationType.REPLACE)  # Ignore edits
             ):
             return False
 
@@ -95,15 +95,26 @@ class GPTPlugin(Plugin):
                 return True
 
         # Reply to threads if the thread's parent should be replied to
-        if self.config['reply_in_thread'] and event.content.relates_to.rel_type == RelationType.THREAD:
-            parent_event = await self.client.get_event(room_id=event.room_id, event_id=event.content.get_thread_parent())
-            return await self.should_respond(parent_event)
+        if self.config['reply_in_thread'] and event.content.relates_to and event.content.relates_to.rel_type == RelationType.THREAD:
+            try:
+                parent_event = await self.client.get_event(room_id=event.room_id, event_id=event.content.get_thread_parent())
+                if parent_event:
+                    return await self.should_respond(parent_event)
+            except (MNotFound, MatrixRequestError, AttributeError, TypeError) as e:
+                # Parent message was deleted or inaccessible, don't respond
+                self.log.debug(f"Could not retrieve thread parent message: {e}")
+                return False
 
         # Reply to messages replying to the bot by checking if the parent message as the `org.jobmachine.chatgpt` key
-        if event.content.relates_to.in_reply_to:
-            parent_event = await self.client.get_event(room_id=event.room_id, event_id=event.content.get_reply_to())
-            if parent_event.sender == self.client.mxid and "org.jobmachine.chatgpt" in parent_event.content:
-                return True
+        if event.content.relates_to and event.content.relates_to.in_reply_to:
+            try:
+                parent_event = await self.client.get_event(room_id=event.room_id, event_id=event.content.get_reply_to())
+                if parent_event and parent_event.sender == self.client.mxid and "org.jobmachine.chatgpt" in parent_event.content:
+                    return True
+            except (MNotFound, MatrixRequestError, AttributeError, TypeError) as e:
+                # Parent message was deleted or inaccessible, don't respond
+                self.log.debug(f"Could not retrieve reply parent message: {e}")
+                return False
 
         return False
 
@@ -175,8 +186,9 @@ class GPTPlugin(Plugin):
     async def gpt(self, evt: MessageEvent) -> None:
         pass
 
-    @command.new(name='summarize', help='generate a summary of room messages')
+    @command.new(name='summarize', help='generate a summary of room or thread messages')
     async def summarize(self, evt: MessageEvent) -> None:
+        await evt.mark_read()
         # check if the user has permission to use this bot,
         # and additionally if allow_summarize is true
         if len(self.config['allowed_users']) > 0 and not self.user_allowed(evt.sender):
@@ -188,7 +200,8 @@ class GPTPlugin(Plugin):
         # normally we only are restricted to getting context from the thread,
         # but when explicitly asked to summarize the room messages, we can use the room context
         # and ignore the addl_context messages when building our context
-        is_thread = evt.content.relates_to.rel_type == RelationType.THREAD
+        is_thread = (evt.content.relates_to and 
+                    evt.content.relates_to.rel_type == RelationType.THREAD)
         context = await self.get_context(evt, is_summary=True, is_thread=is_thread)
         context.append({
             "role": "user",
@@ -262,9 +275,21 @@ your response instead could be "hello username!" without including any colons, b
     async def generate_context_messages(self, evt: MessageEvent, ignore_thread: bool = False) -> Generator[MessageEvent, None, None]:
         yield evt
         if self.config['reply_in_thread'] and not ignore_thread:
-            while evt.content.relates_to.in_reply_to:
-                evt = await self.client.get_event(room_id=evt.room_id, event_id=evt.content.get_reply_to())
-                yield evt
+            while evt.content.relates_to and evt.content.relates_to.in_reply_to:
+                try:
+                    reply_to_id = evt.content.get_reply_to()
+                    if not reply_to_id:
+                        break
+                    next_evt = await self.client.get_event(room_id=evt.room_id, event_id=reply_to_id)
+                    if not next_evt:
+                        # Message was deleted or doesn't exist, stop following the chain
+                        break
+                    evt = next_evt
+                    yield evt
+                except (MNotFound, MatrixRequestError, AttributeError, TypeError) as e:
+                    # Message was deleted or inaccessible, stop following the chain
+                    self.log.debug(f"Could not retrieve parent message in thread: {e}")
+                    break
         else:
             event_context = await self.client.get_event_context(room_id=evt.room_id, event_id=evt.event_id, limit=self.config["max_context_messages"]*2)
             previous_messages = iter(event_context.events_before)
@@ -272,9 +297,16 @@ your response instead could be "hello username!" without including any colons, b
 
                 # We already have the event, but currently, get_event_context doesn't automatically decrypt events
                 if isinstance(evt, EncryptedEvent) and self.client.crypto:
-                    evt = await self.client.get_event(event_id=evt.event_id, room_id=evt.room_id)
-                    if not evt:
-                        raise ValueError("Decryption error!")
+                    try:
+                        decrypted_evt = await self.client.get_event(event_id=evt.event_id, room_id=evt.room_id)
+                        if not decrypted_evt:
+                            # Skip if decryption failed or message doesn't exist
+                            continue
+                        evt = decrypted_evt
+                    except (MNotFound, MatrixRequestError, AttributeError, TypeError) as e:
+                        # Skip if decryption failed or message doesn't exist
+                        self.log.debug(f"Could not decrypt event: {e}")
+                        continue
 
                 yield evt
 
