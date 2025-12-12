@@ -205,7 +205,7 @@ class GPTPlugin(Plugin):
         context = await self.get_context(evt, is_summary=True, is_thread=is_thread)
         context.append({
             "role": "user",
-            "content": "Summarize the following messages: " + "\n".join([m["content"] for m in context])
+            "content": "Summarize the following messages concisely into four or five bullet points and key quotes: " + "\n".join([m["content"] for m in context])
         })
         response = await self._call_gpt(context)
         await evt.respond(response)
