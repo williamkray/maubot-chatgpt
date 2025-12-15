@@ -9,7 +9,7 @@ from mautrix.client import Client
 from collections import deque, defaultdict
 from maubot.handlers import command, event
 from maubot import Plugin, MessageEvent
-from mautrix.errors import MNotFound, MatrixRequestError
+from mautrix.errors import MNotFound, MatrixRequestError, MUnknown
 from mautrix.types import Format, TextMessageEventContent, EventType, RoomID, UserID, MessageType, RelationType, EncryptedEvent
 from mautrix.util import markdown
 from mautrix.util.config import BaseProxyConfig, ConfigUpdateHelper
@@ -260,8 +260,13 @@ your response instead could be "hello username!" without including any colons, b
             message = next_event['content']['body']
             user = ''
             if self.config['enable_multi_user']:
-                user = (await self.client.get_displayname(next_event.sender) or \
-                            self.client.parse_user_id(next_event.sender)[0]) + ": "
+                try:
+                    user = (await self.client.get_displayname(next_event.sender) or \
+                                self.client.parse_user_id(next_event.sender)[0]) + ": "
+                except (MUnknown, MatrixRequestError) as e:
+                    # Profile fetch failed (user left, privacy settings, etc.), fall back to user ID
+                    self.log.debug(f"Could not fetch displayname for {next_event.sender}: {e}")
+                    user = self.client.parse_user_id(next_event.sender)[0] + ": "
 
             word_count += len(message.split())
             message_count += 1
