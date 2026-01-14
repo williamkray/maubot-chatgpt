@@ -1,9 +1,9 @@
 maubot: 0.1.0
-id: org.jobmachine.chatgpt
+id: org.whatever.deepseek
 version: 0.0.12
 modules:
-  - gpt
-main_class: GPTPlugin
+  - deepseek
+main_class: deepseekPlugin
 config: true
 extra_files:
   - base-config.yaml
