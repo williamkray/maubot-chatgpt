@@ -1,7 +1,7 @@
 deepseek_api_key: insert api key
 
 # api endpoint to connect to. you probably don't want to change this.
-api_endpoint: https://api.deepseek.com 
+api_endpoint: https://api.deepseek.com/chat/completions
 
 model: deepseek-chat
 

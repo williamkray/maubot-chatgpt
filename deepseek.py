@@ -105,11 +105,11 @@ class deepseekPlugin(Plugin):
                 self.log.debug(f"Could not retrieve thread parent message: {e}")
                 return False
 
-        # Reply to messages replying to the bot by checking if the parent message as the `org.jobmachine.deepseek` key
+        # Reply to messages replying to the bot by checking if the parent message as the `org.whatever.deepseek` key
         if event.content.relates_to and event.content.relates_to.in_reply_to:
             try:
                 parent_event = await self.client.get_event(room_id=event.room_id, event_id=event.content.get_reply_to())
-                if parent_event and parent_event.sender == self.client.mxid and "org.jobmachine.deepseek" in parent_event.content:
+                if parent_event and parent_event.sender == self.client.mxid and "org.whatever.deepseek" in parent_event.content:
                     return True
             except (MNotFound, MatrixRequestError, AttributeError, TypeError) as e:
                 # Parent message was deleted or inaccessible, don't respond
@@ -138,7 +138,7 @@ class deepseekPlugin(Plugin):
 
             content = TextMessageEventContent(msgtype=MessageType.NOTICE, body=response, format=Format.HTML,
                                               formatted_body=markdown.render(response))
-            content["org.jobmachine.deepseek"] = True
+            content["org.whatever.deepseek"] = True
             await event.respond(content, in_thread=self.config['reply_in_thread'])
 
         except Exception as e:
@@ -318,5 +318,6 @@ your response instead could be "hello username!" without including any colons, b
     @classmethod
     def get_config_class(cls) -> Type[BaseProxyConfig]:
         return Config
+
 
 
