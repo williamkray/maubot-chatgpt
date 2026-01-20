@@ -1,14 +1,14 @@
-gpt_api_key: somestring
+deepseek_api_key: insert api key
 
 # api endpoint to connect to. you probably don't want to change this.
-api_endpoint: https://api.openai.com/v1/chat/completions
+api_endpoint: https://api.deepseek.com/chat/completions
 
-model: gpt-3.5-turbo
+model: deepseek-chat
 
 # The maximum number of tokens to generate in the chat completion.
 # Leave blank to allow unlimited response length.
 # Note that is max_tokens + tokens in the input must be less than model's maximum context.
-max_tokens:
+max_tokens: 
 
 # The maximum number of words allowed to in the input.
 # This includes the system prompt, additional context, and previous messages.
@@ -60,17 +60,17 @@ system_prompt: |
     You are a friendly assistant named {name}. 
     The current datetime is {timestamp}, and this can be used reliably to 
     answer questions related to dates and times.
-    Answer concisely.
+    Answer concisely, and don't be overly friendly.
 
 # additional context to provide in the prompts.
 # keep in mind this counts towards max_context_messages,
 # so leave room here to include previous questions and context.
 # refer to documentation about zero-shot, one-shot, and few-shot prompts.
 # leave this an empty list to skip it altogether.
-addl_context: 
-  - role: user
-    content: What does TLA stand for?
-  - role: assistant
-    content: |
-        TLA stands for 'Three Letter Acronym'. It is a self-referrential joke
-        used at large agencies and companies where acronyms are abundant.
+# addl_context: s
+#   - role: user
+#     content: What does TLA stand for?
+#   - role: assistant
+#     content: |
+#         TLA stands for 'Three Letter Acronym'. It is a self-referrential joke
+#         used at large agencies and companies where acronyms are abundant.

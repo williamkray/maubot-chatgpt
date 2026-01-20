@@ -17,7 +17,7 @@ from mautrix.util.config import BaseProxyConfig, ConfigUpdateHelper
 class Config(BaseProxyConfig):
     def do_update(self, helper: ConfigUpdateHelper) -> None:
         helper.copy("api_endpoint")
-        helper.copy("gpt_api_key")
+        helper.copy("deepseek_api_key")
         helper.copy("model")
         helper.copy("max_tokens")
         helper.copy("enable_multi_user")
@@ -33,7 +33,7 @@ class Config(BaseProxyConfig):
         helper.copy("temperature")
         helper.copy("respond_to_replies")
 
-class GPTPlugin(Plugin):
+class deepseekPlugin(Plugin):
 
     name: str # name of the bot
 
@@ -44,8 +44,8 @@ class GPTPlugin(Plugin):
             await self.client.get_displayname(self.client.mxid) or \
             self.client.parse_user_id(self.client.mxid)[0]
         self.api_endpoint = self.config['api_endpoint']
-        self.log.debug(f"DEBUG gpt plugin started with bot name: {self.name}")
-        self.log.debug(f"DEBUG gpt endpoint set: {self.api_endpoint}")
+        self.log.debug(f"DEBUG deepseek plugin started with bot name: {self.name}")
+        self.log.debug(f"DEBUG deepseek endpoint set: {self.api_endpoint}")
 
     def user_allowed(self, mxid) -> bool:
         for u in self.config['allowed_users']:
@@ -105,11 +105,11 @@ class GPTPlugin(Plugin):
                 self.log.debug(f"Could not retrieve thread parent message: {e}")
                 return False
 
-        # Reply to messages replying to the bot by checking if the parent message as the `org.jobmachine.chatgpt` key
+        # Reply to messages replying to the bot by checking if the parent message as the `org.whatever.deepseek` key
         if event.content.relates_to and event.content.relates_to.in_reply_to:
             try:
                 parent_event = await self.client.get_event(room_id=event.room_id, event_id=event.content.get_reply_to())
-                if parent_event and parent_event.sender == self.client.mxid and "org.jobmachine.chatgpt" in parent_event.content:
+                if parent_event and parent_event.sender == self.client.mxid and "org.whatever.deepseek" in parent_event.content:
                     return True
             except (MNotFound, MatrixRequestError, AttributeError, TypeError) as e:
                 # Parent message was deleted or inaccessible, don't respond
@@ -129,16 +129,16 @@ class GPTPlugin(Plugin):
             context = await self.get_context(event)
             await event.mark_read()
 
-            # Call the chatGPT API to get a response
+            # Call the deepseek API to get a response
             await self.client.set_typing(event.room_id, timeout=99999)
-            response = await self._call_gpt(context)
+            response = await self._call_deepseek(context)
 
             # Send the response back to the chat room
             await self.client.set_typing(event.room_id, timeout=0)
 
             content = TextMessageEventContent(msgtype=MessageType.NOTICE, body=response, format=Format.HTML,
                                               formatted_body=markdown.render(response))
-            content["org.jobmachine.chatgpt"] = True
+            content["org.whatever.deepseek"] = True
             await event.respond(content, in_thread=self.config['reply_in_thread'])
 
         except Exception as e:
@@ -146,14 +146,14 @@ class GPTPlugin(Plugin):
             await event.respond(f"Something went wrong: {e}")
             pass
 
-    async def _call_gpt(self, prompt):
+    async def _call_deepseek(self, prompt):
         full_context = []
 
 
         full_context.extend(list(prompt))
         headers = {
             "Content-Type": "application/json",
-            "Authorization": f"Bearer {self.config['gpt_api_key']}"
+            "Authorization": f"Bearer {self.config['deepseek_api_key']}"
         }
         data = {
             "model": self.config['model'],
@@ -176,14 +176,14 @@ class GPTPlugin(Plugin):
                 return f"Error: {await response.text()}"
             response_json = await response.json()
             content = response_json["choices"][0]["message"]["content"]
-            self.log.debug(f'GPT tokens used: {response_json["usage"]}')
+            self.log.debug(f'deepseek tokens used: {response_json["usage"]}')
             # strip off extra colons which the model seems to keep adding no matter how
             # much you tell it not to
             content = re.sub('^\w*\:+\s+', '', content)
             return str(content)
 
-    @command.new(name='gpt', help='control chatGPT functionality', require_subcommand=True)
-    async def gpt(self, evt: MessageEvent) -> None:
+    @command.new(name='deepseek', help='control deepseek functionality', require_subcommand=True)
+    async def deepseek(self, evt: MessageEvent) -> None:
         pass
 
     @command.new(name='summarize', help='generate a summary of room or thread messages')
@@ -207,7 +207,7 @@ class GPTPlugin(Plugin):
             "role": "user",
             "content": "Summarize the following messages concisely into four or five bullet points and key quotes: " + "\n".join([m["content"] for m in context])
         })
-        response = await self._call_gpt(context)
+        response = await self._call_deepseek(context)
         await evt.respond(response)
 
 
@@ -318,5 +318,6 @@ your response instead could be "hello username!" without including any colons, b
     @classmethod
     def get_config_class(cls) -> Type[BaseProxyConfig]:
         return Config
+
 
 

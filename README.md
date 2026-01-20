@@ -1,11 +1,10 @@
-# chatGPT 
-[![Chat on Matrix](https://img.shields.io/badge/chat_on_matrix-%23dev:mssj.me-green)](https://matrix.to/#/#dev:mssj.me)
+# Deepseek Bot 
 
-maubot plugin to allow your maubot instance to return queries from openAI GPT API endpoints.
+Maubot plugin to allow your maubot instance to return queries from deepseek API endpoints. A _barely_ modified fork of [williamkray's ChatGPT plugin.](https://github.com/williamkray/maubot-chatgpt).
 
 ## Usage
 
-1. Create the bot instance in Maubot Manager, add your openAI API key to the config, and modify as you see fit.
+1. Create the bot instance in Maubot Manager, add your deepseek API key to the config, and modify as you see fit.
 2. Invite the bot to a room.
 3. Ping the bot by mentioning it by name.
 
