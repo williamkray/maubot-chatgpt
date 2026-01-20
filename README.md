@@ -1,6 +1,7 @@
 # Deepseek Bot 
+[![Chat on Matrix](https://img.shields.io/badge/chat_on_matrix-%23tech:communist.accountant-red)](https://mt.communist.accountant/#/#tech:communist.accountant)
 
-Maubot plugin to allow your maubot instance to return queries from deepseek API endpoints. A _barely_ modified fork of [williamkray's ChatGPT plugin.](https://github.com/williamkray/maubot-chatgpt).
+Maubot plugin to allow your maubot instance to return queries from deepseek API endpoints. A _barely_ modified fork of [williamkray's ChatGPT plugin.](https://github.com/williamkray/maubot-chatgpt). By "barely modified" I mean I got as far as changing the names of the variables from "chatgpt" to "deepseek" before realizing I would not need to modify it any further. The API calls of most large AI services use the same syntax. Because of this, I've created a pull request to modify the original to be a more general AI chatbot, rather than one focused on ChatGPT. Until that time, here's my extremely lazy copy. 
 
 ## Usage
 
